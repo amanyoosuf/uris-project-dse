@@ -1,0 +1,14 @@
+{
+  "generated": "2026-10-20T06:43:15",
+  "seed": 42,
+  "pandapower": "3.4.0",
+  "numpy": "2.3.5",
+  "network": "pandapower case33bw",
+  "default_profile": {
+    "base_amp": 0.2,
+    "base_peak_h": 18.0,
+    "ev_amp": 0.25,
+    "ev_peak_h": 19.0,
+    "ev_width": 4.0
+  }
+}
