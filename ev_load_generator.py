@@ -12,11 +12,13 @@ import load_profiles as lp
 
 SINGLE, MULTI, TIME = ("ieee33_ev_voltage_dataset.npy",
                        "ieee33_ev_voltage_dataset_multi.npy", "simulation_time_axis.npy")
+SLACK_V = 1.05   # substation voltage (p.u.)
 
 
 def simulate(multipliers):
     """Run an AC power flow per step. Failed steps stay NaN so they are never hidden."""
     net = nw.case33bw()
+    net.ext_grid["vm_pu"] = SLACK_V
     p0, q0 = net.load.p_mw.copy(), net.load.q_mvar.copy()
     v = np.full((len(multipliers), len(net.bus)), np.nan)
     for i, m in enumerate(multipliers):
@@ -36,7 +38,7 @@ def report(v, mult, t):
     print(f"Peak load multiplier: {mult.max():.3f} x base load")
     print(f"Minimum voltage: {v.min():.4f} p.u. at bus index {bus} (IEEE bus {bus + 1}), {hh:02d}:{mm:02d}")
     print(f"Readings below 0.95 p.u.: {(v < 0.95).sum()} of {v.size}")
-    print("Note: the standard 33-bus feeder already sags below 0.95 p.u. at 1.0x base load.")
+    print(f"Slack voltage set to {SLACK_V} p.u.")
 
 
 def main():
@@ -56,7 +58,7 @@ def main():
     np.save(TIME, t)
 
     info = {"generated": datetime.datetime.now().isoformat(timespec="seconds"), "seed": args.seed,
-            "pandapower": pp.__version__, "numpy": np.__version__, "network": "pandapower case33bw",
+            "pandapower": pp.__version__, "numpy": np.__version__, "network": "pandapower case33bw","slack_voltage_pu": SLACK_V,
             "default_profile": {"base_amp": lp.BASE_AMP, "base_peak_h": lp.BASE_PEAK_H,
                                 "ev_amp": lp.EV_AMP, "ev_peak_h": lp.EV_PEAK_H, "ev_width": lp.EV_WIDTH}}
     if args.n_traj:
