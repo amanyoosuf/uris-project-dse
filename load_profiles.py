@@ -6,7 +6,22 @@ STEP_H = 1 / 6             # exactly 10 minutes
 
 # Default deterministic profile
 BASE_AMP, BASE_PEAK_H = 0.20, 18.0   # +/-20 % daily swing, evening residential peak
-EV_AMP, EV_PEAK_H, EV_WIDTH = 0.25, 19.0, 4.0  # Gaussian-shaped EV charging bump
+# --- EV charging model (scenario assumptions; see DATA_PROVENANCE.md) ---
+BASE_LOAD_KW = 3715.0          # case33bw total active load
+N_HOUSEHOLDS = 2000            # assumed households on the feeder
+CHARGER_KW = 7.0               # assumed home AC charger
+PEAK_CHARGING_FRACTION = 0.25  # assumed share of EVs charging at the evening peak
+EV_PENETRATION = 0.25          # default EVs per household (single-day profile)
+EV_PEAK_H, EV_SIGMA_H = 19.5, 1.5
+NIGHT_PEAK_H, NIGHT_SIGMA_H, NIGHT_FRAC = 1.0, 2.0, 0.3  # smaller overnight bump
+
+
+def ev_amp_from_penetration(pen):
+    """Peak EV load as a multiple of base load."""
+    return N_HOUSEHOLDS * pen * CHARGER_KW * PEAK_CHARGING_FRACTION / BASE_LOAD_KW
+
+
+EV_AMP = ev_amp_from_penetration(EV_PENETRATION)
 
 
 def time_axis():
@@ -19,9 +34,16 @@ def base_curve(t, amp=BASE_AMP, peak_h=BASE_PEAK_H):
     return 1.0 + amp * np.sin(2 * np.pi * (t - peak_h + 6) / 24)
 
 
-def ev_curve(t, amp=EV_AMP, peak_h=EV_PEAK_H, width=EV_WIDTH):
-    """Extra load multiplier from evening EV charging."""
-    return amp * np.exp(-((t - peak_h) ** 2) / width)
+def _circ(t, peak):
+    """Signed distance in hours on a 24 h circle, so the overnight bump wraps past midnight."""
+    return (t - peak + 12) % 24 - 12
+
+
+def ev_curve(t, amp=EV_AMP, peak_h=EV_PEAK_H, sigma=EV_SIGMA_H):
+    """Extra load multiplier from EV charging: evening peak plus a smaller overnight bump."""
+    main = np.exp(-_circ(t, peak_h) ** 2 / (2 * sigma ** 2))
+    night = NIGHT_FRAC * np.exp(-_circ(t, NIGHT_PEAK_H) ** 2 / (2 * NIGHT_SIGMA_H ** 2))
+    return amp * (main + night)
 
 
 def total_multiplier(t, base_amp=BASE_AMP, base_peak_h=BASE_PEAK_H,
@@ -31,5 +53,7 @@ def total_multiplier(t, base_amp=BASE_AMP, base_peak_h=BASE_PEAK_H,
 
 def random_params(rng):
     """Random profile parameters for one trajectory (used for multi-trajectory data)."""
+    pen = rng.uniform(0.10, 0.40)
     return dict(base_amp=rng.uniform(0.15, 0.25), base_peak_h=rng.uniform(17.0, 20.0),
-                ev_amp=rng.uniform(0.10, 0.35), ev_peak_h=rng.normal(19.5, 0.75))
+                ev_penetration=pen, ev_amp=ev_amp_from_penetration(pen),
+                ev_peak_h=rng.normal(19.5, 0.75))

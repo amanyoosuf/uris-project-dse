@@ -61,7 +61,9 @@ def main():
     info = {"generated": datetime.datetime.now().isoformat(timespec="seconds"), "seed": args.seed,
             "pandapower": pp.__version__, "numpy": np.__version__, "network": "pandapower case33bw","slack_voltage_pu": SLACK_V,
             "default_profile": {"base_amp": lp.BASE_AMP, "base_peak_h": lp.BASE_PEAK_H,
-                                "ev_amp": lp.EV_AMP, "ev_peak_h": lp.EV_PEAK_H, "ev_width": lp.EV_WIDTH}}
+                                "ev_amp": lp.EV_AMP, "ev_peak_h": lp.EV_PEAK_H, "ev_sigma_h": lp.EV_SIGMA_H, "ev_penetration": lp.EV_PENETRATION,
+                                "n_households": lp.N_HOUSEHOLDS, "charger_kw": lp.CHARGER_KW,
+                                "peak_charging_fraction": lp.PEAK_CHARGING_FRACTION}}
     if args.n_traj:
         rng = np.random.default_rng(args.seed)
         n_load = len(nw.case33bw().load)
