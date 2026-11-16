@@ -22,12 +22,13 @@ def simulate(multipliers):
     p0, q0 = net.load.p_mw.copy(), net.load.q_mvar.copy()
     v = np.full((len(multipliers), len(net.bus)), np.nan)
     for i, m in enumerate(multipliers):
-        net.load.p_mw, net.load.q_mvar = p0 * m, q0 * m
+        net.load.p_mw = p0.values * m
+        net.load.q_mvar = q0.values * m
         try:
             pp.runpp(net, numba=False)
             v[i] = net.res_bus.vm_pu.values
         except Exception as exc:
-            print(f"  power flow failed at step {i} (multiplier {m:.3f}): {exc}")
+            print(f"  power flow failed at step {i} (multiplier {np.mean(m):.3f}): {exc}")
     return v
 
 
@@ -63,15 +64,25 @@ def main():
                                 "ev_amp": lp.EV_AMP, "ev_peak_h": lp.EV_PEAK_H, "ev_width": lp.EV_WIDTH}}
     if args.n_traj:
         rng = np.random.default_rng(args.seed)
+        n_load = len(nw.case33bw().load)
         trajs, plist, attempts = [], [], 0
         while len(trajs) < args.n_traj and attempts < 3 * args.n_traj:
             attempts += 1
             p = lp.random_params(rng)
-            m = lp.total_multiplier(t, **p) * (1 + rng.normal(0, 0.01, t.size))
+            base = lp.base_curve(t, p["base_amp"], p["base_peak_h"])
+            ev = lp.ev_curve(t, p["ev_amp"], p["ev_peak_h"])
+            scale = 1 + rng.normal(0, 0.05, n_load)            # fixed per-load size variation
+            n_ev = int(rng.integers(8, 13))                     # 8-12 loads have EV charging
+            ev_idx = rng.choice(n_load, size=n_ev, replace=False)
+            ev_w = np.zeros(n_load)
+            ev_w[ev_idx] = n_load / n_ev                        # keeps total EV energy similar
+            noise = 1 + rng.normal(0, 0.01, (t.size, n_load))   # small per-load, per-step noise
+            m = (base[:, None] * scale + ev[:, None] * ev_w) * noise
             vt = simulate(m)
             if not np.isnan(vt).any():
                 trajs.append(vt)
-                plist.append({k: float(x) for k, x in p.items()})
+                plist.append({**{key: float(val) for key, val in p.items()},
+                              "ev_load_idx": [int(i) for i in ev_idx]})
         np.save(MULTI, np.stack(trajs))
         info.update(n_trajectories=len(trajs), attempts=attempts, trajectory_params=plist)
         print(f"Saved {len(trajs)} randomised trajectories to {MULTI}")
